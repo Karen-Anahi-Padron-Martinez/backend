@@ -54,8 +54,7 @@ app.get('/', (req, res) => {
   res.send('API')
 })
 
-// Endpoint para el registro
-app.post('/register',async (req, res) => {
+app.post('/register', async (req, res) => {
   const { email, firstname, lastname, userType, password } = req.body;
 
   // Hash de la contraseña
@@ -65,8 +64,8 @@ app.post('/register',async (req, res) => {
       return res.status(500).json({ message: 'Error interno del servidor' });
     }
 
-    const query = 'INSERT INTO Psicopedagogia ( NombreP, ApellidoP, Puesto,EmailP, Contraseña) VALUES (?, ?, ?, ?, ?)';
-    connection.query(query, [ firstname, lastname, userType,email, hashedPassword], (err, results) => {
+    const query = 'INSERT INTO Psicopedagogia (NombreP, ApellidoP, Puesto, EmailP, Contraseña) VALUES (?, ?, ?, ?, ?)';
+    connection.query(query, [firstname, lastname, userType, email, hash], (err, results) => {
       if (err) {
         console.error('Error ejecutando la consulta:', err.stack);
         return res.status(500).json({ message: 'Error interno del servidor' });
@@ -78,38 +77,73 @@ app.post('/register',async (req, res) => {
 });
 
 // Endpoint para el login
+
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
+
+  console.log('Email:', email);
+  console.log('Password:', password);
 
   const query = 'SELECT * FROM Psicopedagogia WHERE EmailP = ?';
   connection.query(query, [email], (err, results) => {
     if (err) {
       console.error('Error ejecutando la consulta:', err.stack);
-      return res.status(500).json({ message: 'Error interno del servidor' });
+      return res.status(500).json({ message: 'Error interno del servidor al ejecutar la consulta' });
     }
 
-    if (results.length > 0) {
-      // Comparar contraseñas
-      bcrypt.compare(password, results[0].Contraseña, (err, result) => {
-        if (result) {
-          const nuevoRegistro = {
-            IdPsico: results[0].IdPsico,
-            NombreP: results[0].NombreP,
-            ApellidoP: results[0].ApellidoP,
-            Puesto: results[0].Puesto,
-            EmailP: results[0].EmailP,
-            Fecha: new Date()
-          };
+    console.log('Resultados de la consulta:', results);
 
-          return res.status(201).json({ message: 'Login exitoso', registro: nuevoRegistro });
-        } else {
-          return res.status(400).json({ message: 'Credenciales inválidas' });
-        }
-      });
-    } else {
-      return res.status(400).json({ message: 'Credenciales inválidas' });
+    if (results.length === 0) {
+      return res.status(400).json({ message: 'Usuario no encontrado' });
     }
+
+    const user = results[0];
+
+    // Verificar la contraseña
+    const hash = user.Contraseña.toString(); // Asegúrate de que el hash es una cadena
+    bcrypt.compare(password, hash, (err, isMatch) => {
+      if (err) {
+        console.error('Error comparando contraseñas:', err.stack);
+        return res.status(500).json({ message: 'Error interno del servidor al comparar contraseñas' });
+      }
+
+      console.log('Contraseña comparada, es igual:', isMatch);
+
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Contraseña incorrecta' });
+      }
+
+      // Login exitoso
+      return res.status(200).json({ message: 'Registro agregado', registro: user });
+    });
   });
 });
 
+// Endpoint para actualizar
+// Ruta para actualizar un registro
+app.put('/update_psicopedagogia/:id', (req, res) => {
+  const id = req.params.id;
+  const data = req.body; // Asegúrate de que 'data' esté definido aquí
+  const sql = 'UPDATE psicopedagogia SET ? WHERE IdPsico = ?';
+  connection.query(sql, [data, id], (err, result) => {
+    if (err) {
+      console.error('Error al actualizar el registro:', err);
+      res.status(500).send('Error al actualizar el registro');
+      return;
+    }
+    console.log(`Registro con IdPsico=${id} actualizado. Datos:`, data);
+    res.send('Registro actualizado');
+  });
+});
 
+// Endpoint para eliminar
+app.delete('/delete_psicopedagogia/:id', (req, res) => {
+  const id = req.params.id;
+  const sql = `DELETE FROM psicopedagogia WHERE IdPsico = ?`;
+
+  connection.query(sql, [id], (err, result) => {
+      if (err) throw err;
+      console.log(`Registro con IdPsico=${id} eliminado.`);
+      res.send({ message: 'Registro eliminado exitosamente' });
+  });
+});
